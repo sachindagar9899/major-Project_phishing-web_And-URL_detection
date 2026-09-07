@@ -1,0 +1,688 @@
+from rich.console import Console
+from rich.table import Table
+from rich.panel import Panel
+from rich import box
+from rich.prompt import Prompt
+from utils.ui import banner, show_result, show_history, show_module, show_menu
+from core.analyzer import analyze_target
+from core.ml_engine import predict_url, model_status
+from agent.investigator import PhishGuardAgent
+from checks.qr_checks import extract_qr_url
+from checks.network_checks import dns_and_tls, domain_age
+from checks.content_checks import fetch_and_analyze
+from checks.threat_intel import check_threat_intelligence
+from reports.generator import generate_reports, list_reports
+from urllib.parse import urlsplit
+console=Console()
+
+def ask_url():
+    return Prompt.ask("\n[bold cyan]Enter Target URL[/bold cyan]").strip()
+def url_analysis_scan():
+    show_module("🔗 ADVANCED URL ANALYSIS")
+    url = ask_url()
+
+    try:
+        result = url_checks(url)
+
+        summary = result.get("summary", {})
+        features = result.get("features", {})
+        evidence = result.get("evidence", [])
+
+        table = Table(
+            title="🔗 ADVANCED URL ANALYSIS",
+            box=box.ROUNDED,
+            expand=False,
+            padding=(0, 2)
+        )
+
+        table.add_column(
+            "Parameter",
+            style="bold white",
+            min_width=24
+        )
+
+        table.add_column(
+            "Value",
+            style="cyan",
+            min_width=30
+        )
+
+        def yes_no(value):
+            if value:
+                return "[green]YES[/green]"
+            return "[green]NO[/green]"
+
+        table.add_row(
+            "Host",
+            str(summary.get("host", "Unknown"))
+        )
+
+        table.add_row(
+            "Scheme",
+            str(summary.get("scheme", "Unknown"))
+        )
+
+        table.add_row(
+            "HTTPS",
+            yes_no(features.get("HTTPS", False))
+        )
+
+        table.add_row(
+            "IP Host",
+            yes_no(features.get("IP Host", False))
+        )
+
+        table.add_row(
+            "URL Length",
+            str(features.get("URL Length", 0))
+        )
+
+        table.add_row(
+            "Hostname Length",
+            str(features.get("Hostname Length", 0))
+        )
+
+        table.add_row(
+            "Dot Count",
+            str(features.get("Dot Count", 0))
+        )
+
+        table.add_row(
+            "Hyphen Count",
+            str(features.get("Hyphen Count", 0))
+        )
+
+        table.add_row(
+            "Digit Count",
+            str(features.get("Digit Count", 0))
+        )
+
+        table.add_row(
+            "Subdomain Count",
+            str(features.get("Subdomain Count", 0))
+        )
+
+        keywords = features.get(
+            "Sensitive Keywords",
+            []
+        )
+
+        table.add_row(
+            "Sensitive Keywords",
+            ", ".join(keywords)
+            if keywords else "NONE"
+        )
+
+        table.add_row(
+            "Punycode",
+            yes_no(features.get("Punycode", False))
+        )
+
+        table.add_row(
+            "URL Shortener",
+            yes_no(features.get("URL Shortener", False))
+        )
+
+        table.add_row(
+            "@ Symbol",
+            yes_no(features.get("@ Symbol", False))
+        )
+
+        table.add_row(
+            "Embedded Credentials",
+            yes_no(
+                features.get(
+                    "Embedded Credentials",
+                    False
+                )
+            )
+        )
+
+        table.add_row(
+            "Double Slash Path",
+            yes_no(
+                features.get(
+                    "Double Slash Path",
+                    False
+                )
+            )
+        )
+
+        table.add_row(
+            "Port",
+            str(features.get("Port", "Default"))
+        )
+
+        table.add_row(
+            "Hostname Entropy",
+            str(
+                features.get(
+                    "Hostname Entropy",
+                    0
+                )
+            )
+        )
+
+        table.add_row(
+            "Path Length",
+            str(features.get("Path Length", 0))
+        )
+
+        table.add_row(
+            "Query Length",
+            str(features.get("Query Length", 0))
+        )
+
+        table.add_row(
+            "Fragment Length",
+            str(features.get("Fragment Length", 0))
+        )
+
+        table.add_row(
+            "Suspicious Characters",
+            str(
+                features.get(
+                    "Suspicious Characters",
+                    0
+                )
+            )
+        )
+
+        console.print()
+        console.print(table)
+
+        # ---------------- RISK ----------------
+
+        score = summary.get("risk_score", 0)
+        risk = summary.get(
+            "risk_level",
+            "LOW"
+        )
+
+        if risk == "HIGH":
+            risk_text = "[bold red]🚨 HIGH[/bold red]"
+
+        elif risk == "MEDIUM":
+            risk_text = "[bold yellow]⚠ MEDIUM[/bold yellow]"
+
+        else:
+            risk_text = "[bold green]✓ LOW[/bold green]"
+
+        risk_table = Table(
+            title="URL RISK ASSESSMENT",
+            box=box.ROUNDED,
+            expand=False
+        )
+
+        risk_table.add_column(
+            "Risk Score",
+            style="bold white"
+        )
+
+        risk_table.add_column(
+            "Risk Level",
+            style="bold white"
+        )
+
+        risk_table.add_row(
+            f"{score}/100",
+            risk_text
+        )
+
+        console.print()
+        console.print(risk_table)
+
+        # ---------------- EVIDENCE ----------------
+
+        if evidence:
+
+            evidence_table = Table(
+                title="⚠ SUSPICIOUS INDICATORS",
+                box=box.ROUNDED,
+                expand=False
+            )
+
+            evidence_table.add_column(
+                "Severity",
+                style="bold"
+            )
+
+            evidence_table.add_column(
+                "Indicator"
+            )
+
+            evidence_table.add_column(
+                "Points",
+                justify="right"
+            )
+
+            for item in evidence:
+
+                severity = item.get(
+                    "severity",
+                    "unknown"
+                ).upper()
+
+                if severity == "HIGH":
+                    severity_display = "[red]HIGH[/red]"
+
+                elif severity == "MEDIUM":
+                    severity_display = "[yellow]MEDIUM[/yellow]"
+
+                else:
+                    severity_display = "[dim]LOW[/dim]"
+
+                evidence_table.add_row(
+                    severity_display,
+                    item.get(
+                        "message",
+                        "Unknown"
+                    ),
+                    str(
+                        item.get(
+                            "points",
+                            0
+                        )
+                    )
+                )
+
+            console.print()
+            console.print(evidence_table)
+
+        else:
+
+            console.print()
+
+            console.print(
+                Panel(
+                    "✓ No suspicious URL indicators detected",
+                    title="Security Analysis",
+                    border_style="green"
+                )
+            )
+
+        # ---------------- TARGET ----------------
+
+        console.print()
+
+        console.print(
+            Panel(
+                url,
+                title="Target URL",
+                border_style="cyan"
+            )
+        )
+
+    except Exception as e:
+
+        console.print(
+            Panel(
+                f"[bold red]{e}[/bold red]",
+                title="URL Analysis Error",
+                border_style="red"
+            )
+        )
+
+    input(
+        "\nPress ENTER to return to main menu..."
+    )
+def ssl_https_analysis():
+    console.print(
+        Panel(
+            "🔒 SSL / HTTPS ANALYSIS",
+            style="bold cyan",
+            border_style="cyan",
+            box=box.ROUNDED
+        )
+    )
+
+    url = console.input("\n[bold]Enter Target URL:[/bold] ")
+
+    try:
+        target = url if "://" in url else "https://" + url
+        parsed = urlsplit(target)
+        host = parsed.hostname or ""
+
+        if not host:
+            console.print(
+                "\n[bold red]✗ Invalid URL[/bold red]"
+            )
+            console.input(
+                "\n[dim]Press ENTER to return to main menu...[/dim]"
+            )
+            return
+
+        # Existing project DNS + TLS function
+        result = dns_and_tls(host)
+
+        tls = result.get("tls", {})
+        ips = result.get("ips", [])
+
+        valid = tls.get("valid", False)
+        expiry = tls.get("notAfter", "Unknown")
+        issuer = str(tls.get("issuer", "Unknown"))
+
+        # Clean certificate issuer
+        if "Let's Encrypt" in issuer:
+            issuer_name = "Let's Encrypt"
+        elif issuer == "Unknown":
+            issuer_name = "Unknown"
+        else:
+            issuer_name = issuer
+
+        # HTTPS status
+        if parsed.scheme.lower() == "https":
+            https_status = "[bold green]YES[/bold green]"
+        else:
+            https_status = "[bold red]NO[/bold red]"
+
+        # TLS status
+        if valid:
+            tls_status = "[bold green]VALID[/bold green]"
+            security_status = "[bold green]✓ SECURE[/bold green]"
+        else:
+            tls_status = "[bold red]INVALID[/bold red]"
+            security_status = "[bold red]✗ NOT SECURE[/bold red]"
+
+        # Create table
+        table = Table(
+            show_header=False,
+            box=None,
+            padding=(0, 1)
+        )
+
+        table.add_column(
+            "Field",
+            style="bold cyan",
+            width=20
+        )
+
+        table.add_column(
+            "Value",
+            style="white"
+        )
+
+        table.add_row(
+            "Host",
+            host
+        )
+
+        table.add_row(
+            "HTTPS",
+            https_status
+        )
+
+        table.add_row(
+            "TLS Certificate",
+            tls_status
+        )
+
+        table.add_row(
+            "Certificate Name",
+            host
+        )
+
+        table.add_row(
+            "Issuer",
+            issuer_name
+        )
+
+        table.add_row(
+            "Expiry",
+            str(expiry)
+        )
+
+        # IP addresses
+        if ips:
+            ip_text = str(ips[0])
+
+            for ip in ips[1:]:
+                ip_text += "\n" + (" " * 20) + str(ip)
+
+            table.add_row(
+                "IP Addresses",
+                ip_text
+            )
+        else:
+            table.add_row(
+                "IP Addresses",
+                "None"
+            )
+
+        table.add_row(
+            "Security Status",
+            security_status
+        )
+
+        # Display panel
+        console.print(
+            Panel(
+                table,
+                title="[bold cyan]SSL / HTTPS ANALYSIS[/bold cyan]",
+                border_style="cyan",
+                box=box.ROUNDED,
+                padding=(1, 2)
+            )
+        )
+
+        # Security findings
+        evidence = result.get("evidence", [])
+
+        if evidence:
+            evidence_table = Table(
+                title="⚠ Security Findings",
+                box=box.ROUNDED
+            )
+
+            evidence_table.add_column(
+                "Severity",
+                style="bold"
+            )
+
+            evidence_table.add_column(
+                "Finding"
+            )
+
+            for item in evidence:
+                severity = str(
+                    item.get("severity", "unknown")
+                ).upper()
+
+                message = str(
+                    item.get("message", "Unknown")
+                )
+
+                evidence_table.add_row(
+                    severity,
+                    message
+                )
+
+            console.print(evidence_table)
+
+        else:
+            console.print(
+                "\n[bold green]✓ No SSL/TLS security issues detected.[/bold green]"
+            )
+
+    except Exception as e:
+        console.print(
+            f"\n[bold red]SSL Analysis Error:[/bold red] {e}"
+        )
+
+    console.input(
+        "\n[dim]Press ENTER to return to main menu...[/dim]"
+    )
+def full_scan(url, agent_mode=False):
+    console.print(
+        "╔══════════════════════════════════════════════╗\n"
+        "║      🤖 PHISHGUARD-AI v5.0 SCAN ENGINE      ║\n"
+        "╚══════════════════════════════════════════════╝",
+        style="bold cyan"
+    )
+
+    console.print(f"\n[bold]Target:[/bold] [cyan]{url}[/cyan]\n")
+
+    try:
+        if agent_mode:
+            result = PhishGuardAgent(console).investigate(
+                url,
+                analyze_target
+            )
+        else:
+            result = analyze_target(
+                url,
+                console=console
+            )
+
+        console.print(
+            "\n[yellow]📄 Generating Automatic Security Reports...[/yellow]"
+        )
+
+        paths = generate_reports(result)
+
+        console.print(
+            "[green]"
+            "✓ JSON Report Generated\n"
+            "✓ TXT Report Generated\n"
+            "✓ PDF Report Generated"
+            "[/green]"
+        )
+
+        show_result(result)
+
+        console.print(
+            "\n[bold green]Reports Saved Successfully:[/bold green]"
+        )
+
+        for k, p in paths.items():
+            console.print(
+                f"  [cyan]{k.upper()}:[/cyan] {p}"
+            )
+
+    except Exception as e:
+        console.print(
+            f"[bold red]Scan Error:[/bold red] {e}"
+        )
+
+
+def ml_scan():
+    show_module("🤖 MACHINE LEARNING PHISHING CLASSIFICATION")
+
+    url = ask_url()
+
+    try:
+        p = predict_url(url)
+
+        prediction = (
+            "🚨 PHISHING"
+            if p["label"] == "PHISHING"
+            else "✅ LEGITIMATE"
+        )
+
+        console.print(
+            f"\n[bold]Model:[/bold] {p['model']}"
+        )
+
+        console.print(
+            f"[bold]Prediction:[/bold] {prediction}"
+        )
+
+        console.print(
+            f"[bold]ML Confidence:[/bold] "
+            f"{p['confidence']:.2f}%"
+        )
+
+        console.print(
+            f"[bold]Phishing Probability:[/bold] "
+            f"{p['phishing_probability']:.2f}%"
+        )
+
+        if "model_status" in p:
+            console.print(
+                f"[dim]Model Status: {p['model_status']}[/dim]"
+            )
+
+    except Exception as e:
+        console.print(
+            f"[red]ML Error: {e}[/red]"
+        )
+
+
+def network_scan():
+    show_module("🌐 DOMAIN & NETWORK INTELLIGENCE")
+
+    url = ask_url()
+    host = urlsplit(url).hostname or ""
+
+    try:
+        n = dns_and_tls(host)
+        a = domain_age(host)
+
+        console.print(
+            f"\n[bold]Domain:[/bold] {host}"
+        )
+
+        console.print(
+            f"[bold]IP:[/bold] {n.get('ips', [])}"
+        )
+
+        console.print(
+            f"[bold]TLS:[/bold] {n.get('tls', {})}"
+        )
+
+        console.print(
+            f"[bold]Domain Age:[/bold] "
+            f"{a.get('age_days', 'Unknown')} days"
+        )
+
+    except Exception as e:
+        console.print(
+            f"[red]Network Error: {e}[/red]"
+        )
+def behaviour_scan():
+    show_module("🧠 WEBSITE BEHAVIOUR ANALYSIS"); r=fetch_and_analyze(ask_url()); s=r["signals"]
+    for k,v in s.items(): console.print(f"{k}: {v}")
+    console.print(f"\nFinal URL: {r.get('final_url')}\nRedirects: {len(r.get('redirect_chain',[]))}")
+
+def qr_scan():
+    show_module("📱 QR / QUISHING SCANNER"); path=Prompt.ask("QR image path")
+    try:
+        url=extract_qr_url(path); console.print(f"[green]✓ Extracted:[/green] {url}")
+        if Prompt.ask("Run full scan?",choices=["y","n"],default="y")=="y": full_scan(url)
+    except Exception as e: console.print(f"[red]QR Error: {e}[/red]")
+
+def ti_scan():
+    show_module("🛡 THREAT INTELLIGENCE LOOKUP"); r=check_threat_intelligence(ask_url())
+    for k,v in r.items():
+        if k!="evidence": console.print(f"{k}: {v}")
+
+def single_feature(name, fn):
+    show_module(name)
+    try:
+        r=fn(ask_url())
+        console.print_json(data=r)
+    except Exception as e: console.print(f"[red]Error: {e}[/red]")
+
+def main():
+    while True:
+        banner(); show_menu()
+        choice=Prompt.ask("\n[bold cyan]PhishGuard-AI[/bold cyan] > Select Module",
+                          choices=[str(i) for i in range(16)]+["0"],default="1")
+        if choice=="0": console.print("[bold red]PhishGuard-AI terminated.[/bold red]"); break
+        if choice=="1": full_scan(ask_url())
+        elif choice=="2": full_scan(ask_url(),True)
+        elif choice=="3": ml_scan()
+        elif choice=="4": url_analysis_scan()
+        elif choice=="5": network_scan()
+        elif choice=="6": ssl_https_analysis()       
+        elif choice=="7": single_feature("🔄 REDIRECT ANALYSIS",fetch_and_analyze)
+        elif choice=="8": behaviour_scan()
+        elif choice=="9": single_feature("🔐 CREDENTIAL FORM ANALYSIS",fetch_and_analyze)
+        elif choice=="10": single_feature("🧠 SUSPICIOUS BEHAVIOUR ANALYSIS",fetch_and_analyze)
+        elif choice=="11": single_feature("🏢 BRAND IMPERSONATION ANALYSIS",lambda u: __import__("checks.brand_checks",fromlist=["brand_checks"]).brand_checks(urlsplit(u if "://" in u else "https://"+u).hostname or ""))
+        elif choice=="12": qr_scan()
+        elif choice=="13": ti_scan()
+        elif choice=="14": console.print("[yellow]Browser extension is in extension/ and calls the optional FastAPI server.[/yellow]")
+        elif choice=="15": show_history(); console.print("\n[bold]Reports:[/bold]\n"+list_reports())
+        input("\nPress ENTER to return to main menu...")
+if __name__=="__main__": main()

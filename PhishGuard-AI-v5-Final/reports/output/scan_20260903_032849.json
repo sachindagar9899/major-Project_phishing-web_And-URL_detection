@@ -1,0 +1,78 @@
+{
+  "scan_time": "2026-09-03T03:28:49.508551",
+  "target": "https://chatgpt.com/c/6a93c3e3-36ec-83e9-91ed-50edc15235a7",
+  "host": "chatgpt.com",
+  "url_checks": {
+    "evidence": [],
+    "summary": {
+      "host": "chatgpt.com",
+      "length": 58,
+      "keywords": [],
+      "scheme": "https",
+      "has_ip": false
+    }
+  },
+  "network": {
+    "evidence": [],
+    "ips": [
+      "104.18.32.47",
+      "172.64.155.209"
+    ],
+    "tls": {
+      "valid": true,
+      "notAfter": "Nov 30 17:02:20 2026 GMT",
+      "subject": "((('commonName', 'chatgpt.com'),),)",
+      "issuer": "((('countryName', 'US'),), (('organizationName', \"Let's Encrypt\"),), (('commonName', 'YE1'),))"
+    }
+  },
+  "domain_age": {
+    "evidence": [],
+    "age_days": 1372
+  },
+  "brand": {
+    "evidence": [],
+    "matches": [],
+    "official_matches": [],
+    "registrable_domain": "chatgpt.com"
+  },
+  "content": {
+    "evidence": [],
+    "signals": {
+      "password_fields": 0,
+      "cross_domain_form": false,
+      "card_fields": 0,
+      "otp_fields": 0,
+      "identity_fields": 0,
+      "suspicious_downloads": 0,
+      "remote_lure": false,
+      "hidden_iframes": 0,
+      "external_form_hosts": []
+    },
+    "redirect_chain": [
+      "https://chatgpt.com/c/6a93c3e3-36ec-83e9-91ed-50edc15235a7"
+    ],
+    "final_url": "https://chatgpt.com/c/6a93c3e3-36ec-83e9-91ed-50edc15235a7",
+    "status_code": 403,
+    "title": null
+  },
+  "ml": {
+    "label": "LEGITIMATE",
+    "confidence": 99.99780982686993,
+    "model": "GradientBoostingClassifier",
+    "phishing_probability": 0.0021901731300760377
+  },
+  "threat_intelligence": {
+    "VirusTotal": "NOT CONFIGURED",
+    "Google Safe Browsing": "NOT CONFIGURED",
+    "evidence": []
+  },
+  "risk_score": 0.0,
+  "verdict": "LOW RISK / NO STRONG SIGNAL",
+  "intent": {
+    "likely_purpose": "UNKNOWN / INSUFFICIENT EVIDENCE",
+    "evidence": []
+  },
+  "evidence": [],
+  "confidence": "LOW",
+  "report_id": "20260903_032849"
+}
